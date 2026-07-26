@@ -7,7 +7,7 @@
  * Setup: Extensions -> Apps Script -> paste this file -> Save ->
  * run `onOpen` once to authorize -> reload the Sheet.
  *
- * Version: 1.0.1
+ * Version: 1.0.2
  * Date:    2026-07-26
  * Author:  Tom Vincke (github.com/DIY23)
  * Developed with assistance from Claude (Anthropic).
@@ -23,7 +23,13 @@
 const EXPORT_START_ROW = 2;  // skip row 1 (left free for labels/notes)
 const EXPORT_START_COL = 2;  // skip column A (left free for labels/notes)
 const EXPORT_ROWS = 8;       // number of rows to export from the start row
-const EXPORT_COLS = 8;       // number of columns to export from the start col
+const EXPORT_COLS = 7;       // number of columns to export from the start col
+
+// Blank cells in the default (cue) range are exported as this string
+// instead of being left empty. This covers both truly empty cells and
+// dropdown/validation cells left unselected. If a cell already contains
+// this exact string, it's left untouched.
+const BLANK_FILL_VALUE = "NULL";
 
 // Special case: a tab with this exact name gets its own range/filename.
 const DURATIONS_SHEET_NAME = "DURATIONS";
@@ -31,9 +37,11 @@ const DURATIONS_START_ROW = 2;   // skip row 1
 const DURATIONS_START_COL = 1;   // start at column A (no column skipped)
 const DURATIONS_COLS = 2;        // only export the first 2 columns
 // Row count is determined dynamically, based on column A (see below).
+// Note: blank cells in the DURATIONS export are NOT filled with
+// BLANK_FILL_VALUE — only the default (cue) range gets that treatment.
 
 // Special case: tabs with these exact names are never exported.
-const BLOCKED_SHEET_NAMES = ["MOVIES", "EMPTY CUE"];
+const BLOCKED_SHEET_NAMES = ["MOVIES", "MOVIES - Helper list", "EMPTY CUE"];
 
 // Prefix applied to all filenames except the DURATIONS special case.
 const FILENAME_PREFIX = "lxae_";
@@ -59,15 +67,25 @@ function onOpen() {
  * Reads a specific range from a sheet and converts it to a TSV string.
  * Tabs and newlines inside cell values are replaced with spaces so they
  * can't corrupt the TSV structure.
+ *
+ * If fillBlanks is true, any cell that's empty (or whitespace-only —
+ * covers both truly blank cells and unselected dropdown/validation
+ * cells) is replaced with BLANK_FILL_VALUE. Cells that already contain
+ * BLANK_FILL_VALUE are left untouched.
  */
-function sheetToTsv_(sheet, startRow, startCol, numRows, numCols) {
+function sheetToTsv_(sheet, startRow, startCol, numRows, numCols, fillBlanks) {
   const range = sheet.getRange(startRow, startCol, numRows, numCols);
   const data = range.getValues();
 
   return data.map(row =>
     row.map(cell => {
       let val = (cell === null || cell === undefined) ? "" : String(cell);
-      return val.replace(/\t/g, " ").replace(/\r?\n/g, " ");
+      val = val.replace(/\t/g, " ").replace(/\r?\n/g, " ");
+
+      if (fillBlanks && val.trim() === "") {
+        return BLANK_FILL_VALUE;
+      }
+      return val;
     }).join("\t")
   ).join("\n");
 }
@@ -117,14 +135,16 @@ function exportForSheet_(sheet) {
   }
 
   // Special case: DURATIONS tab uses its own range and filename.
+  // Blanks are NOT filled with BLANK_FILL_VALUE here.
   if (name === DURATIONS_SHEET_NAME) {
     const numRows = findDurationsRowCount_(sheet);
-    const tsv = sheetToTsv_(sheet, DURATIONS_START_ROW, DURATIONS_START_COL, numRows, DURATIONS_COLS);
+    const tsv = sheetToTsv_(sheet, DURATIONS_START_ROW, DURATIONS_START_COL, numRows, DURATIONS_COLS, false);
     return { tsv, fileName: "durations.tsv" };
   }
 
-  // Default case: standard range and prefixed filename.
-  const tsv = sheetToTsv_(sheet, EXPORT_START_ROW, EXPORT_START_COL, EXPORT_ROWS, EXPORT_COLS);
+  // Default case (cue tabs): standard range, prefixed filename, and
+  // blank cells filled with BLANK_FILL_VALUE.
+  const tsv = sheetToTsv_(sheet, EXPORT_START_ROW, EXPORT_START_COL, EXPORT_ROWS, EXPORT_COLS, true);
   return { tsv, fileName: `${FILENAME_PREFIX}${name}.tsv` };
 }
 
