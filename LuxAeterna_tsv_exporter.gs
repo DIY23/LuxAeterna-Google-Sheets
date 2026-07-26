@@ -7,10 +7,10 @@
  * Setup: Extensions -> Apps Script -> paste this file -> Save ->
  * run `onOpen` once to authorize -> reload the Sheet.
  *
- * Version: 1.0.0
- * Date:    2026-07-25
+ * Version: 1.0.1
+ * Date:    2026-07-26
  * Author:  Tom Vincke (github.com/DIY23)
- * Developed with assistance from Claude Sonnet 5 (Anthropic).
+ * Developed with assistance from Claude (Anthropic).
  * License: MIT
  */
 
@@ -30,10 +30,10 @@ const DURATIONS_SHEET_NAME = "DURATIONS";
 const DURATIONS_START_ROW = 2;   // skip row 1
 const DURATIONS_START_COL = 1;   // start at column A (no column skipped)
 const DURATIONS_COLS = 2;        // only export the first 2 columns
-// Row count is determined dynamically (down to the last row with data).
+// Row count is determined dynamically, based on column A (see below).
 
 // Special case: tabs with these exact names are never exported.
-const BLOCKED_SHEET_NAMES = ["MOVIES"];
+const BLOCKED_SHEET_NAMES = ["MOVIES", "EMPTY CUE"];
 
 // Prefix applied to all filenames except the DURATIONS special case.
 const FILENAME_PREFIX = "lxae_";
@@ -73,6 +73,33 @@ function sheetToTsv_(sheet, startRow, startCol, numRows, numCols) {
 }
 
 /**
+ * Finds the number of rows in the DURATIONS tab that actually contain
+ * data, based on column A. getLastRow() isn't reliable for this tab
+ * because other columns hold a formula that returns "" instead of a
+ * truly empty cell — Sheets still counts those rows as non-blank.
+ * Column A has no such formula, so it's used as the source of truth.
+ *
+ * Returns the number of rows to export, starting from DURATIONS_START_ROW
+ * (minimum of 1, to avoid a zero/negative range if the tab is empty).
+ */
+function findDurationsRowCount_(sheet) {
+  const numRowsToCheck = sheet.getMaxRows() - DURATIONS_START_ROW + 1;
+  const colAValues = sheet
+    .getRange(DURATIONS_START_ROW, DURATIONS_START_COL, numRowsToCheck, 1)
+    .getValues();
+
+  let lastRealRow = 0;
+  for (let i = colAValues.length - 1; i >= 0; i--) {
+    if (String(colAValues[i][0]).trim() !== "") {
+      lastRealRow = i + 1; // convert 0-based loop index to a 1-based row count
+      break;
+    }
+  }
+
+  return Math.max(lastRealRow, 1);
+}
+
+/**
  * Decides how a given sheet should be exported: which range to use and
  * what the output filename should be. Centralizes all the per-sheet
  * naming logic in one place so both export functions stay in sync.
@@ -91,9 +118,7 @@ function exportForSheet_(sheet) {
 
   // Special case: DURATIONS tab uses its own range and filename.
   if (name === DURATIONS_SHEET_NAME) {
-    const lastRow = sheet.getLastRow();
-    // Export down to the last row with data, minimum of 1 row.
-    const numRows = Math.max(lastRow - DURATIONS_START_ROW + 1, 1);
+    const numRows = findDurationsRowCount_(sheet);
     const tsv = sheetToTsv_(sheet, DURATIONS_START_ROW, DURATIONS_START_COL, numRows, DURATIONS_COLS);
     return { tsv, fileName: "durations.tsv" };
   }
