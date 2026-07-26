@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-07-26
+
+### Fixed
+- `DURATIONS` tab export no longer includes trailing blank rows. Row
+  count is now determined by scanning column A for the last non-empty
+  cell, instead of relying on `getLastRow()` — which was returning the
+  full formula range (up to 666 rows) since other columns contain a
+  formula that evaluates to `""` rather than a truly empty cell.
+  ### Changed
+- Added `EMPTY CUE` to the list of blocked tab names (`BLOCKED_SHEET_NAMES`).
+  This tab is now skipped during batch export and rejected with an
+  on-screen message if exported directly, same as `MOVIES`.
+
 ## [1.0.0] - 2026-07-25
 
 ### Added
