@@ -11,8 +11,12 @@ into the Sheet's own Apps Script project.
 - Export the active tab, or all tabs in one click.
 - Exports a configurable range per tab, so you can keep labels/notes
   outside the exported area (default: skips row 1 and column A).
-- Special-cases a tab named `DURATIONS` with its own range and a fixed
-  output filename (`durations.tsv`).
+- Blank cells in the default (cue) export range — including unselected
+  dropdown/validation cells — are filled with `NULL` instead of being
+  left empty.
+- Special-cases a tab named `DURATIONS` with its own range, dynamic row
+  count, and a fixed output filename (`durations.tsv`). Blanks in this
+  export are left as-is, not filled with `NULL`.
 - Blocks specific tabs (e.g. `MOVIES`) from ever being exported.
 - Batch export downloads one `.tsv` per tab, staggered slightly so
   Chrome doesn't block multiple simultaneous downloads.
@@ -22,7 +26,7 @@ into the Sheet's own Apps Script project.
 1. Open the Google Sheet you want to export from.
 2. Go to **Extensions → Apps Script**.
 3. Delete any boilerplate code in `Code.gs` and paste in the full
-   contents of [`lux-aeterna.gs`](./lux-aeterna.gs).
+   contents of [`LuxAeterna_tsv_exporter.gs`](./LuxAeterna_tsv_exporter.gs).
 4. Save the project (**Ctrl+S** / **Cmd+S**).
 5. In the function dropdown at the top, select `onOpen`, then click
    **Run**. The first run will prompt you to authorize the script
@@ -51,12 +55,14 @@ entirely — with an on-screen notice if you try to export one directly.
 
 ## Configuration
 
-All behavior is controlled by constants at the top of `lux-aeterna.gs`:
+All behavior is controlled by constants at the top of
+`LuxAeterna_tsv_exporter.gs`:
 
 | Constant | Purpose |
 |---|---|
 | `EXPORT_START_ROW`, `EXPORT_START_COL` | Top-left corner of the default export range (1-indexed). |
 | `EXPORT_ROWS`, `EXPORT_COLS` | Size of the default export range. |
+| `BLANK_FILL_VALUE` | String used to fill blank cells in the default export range (default: `"NULL"`). Cells already containing this value are left untouched. |
 | `DURATIONS_SHEET_NAME` | Tab name that triggers the special-case range/filename. |
 | `DURATIONS_START_ROW`, `DURATIONS_START_COL`, `DURATIONS_COLS` | Range used for that tab (row count is automatic, down to the last row with data). |
 | `BLOCKED_SHEET_NAMES` | Array of tab names that are never exported. |
